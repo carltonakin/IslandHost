@@ -13,6 +13,6 @@ export class ListDto {
  @IsOptional() @IsIn(['newest','oldest','date','name']) sort = 'newest';
  @IsOptional() @IsIn(['true','false']) all?: string;
 }
-export const pageResult = (items: unknown[], total: number, query: ListDto) => ({items,total,page:query.page,limit:query.limit,totalPages:Math.ceil(total/query.limit)});
+export const pageResult = <T>(items: T[], total: number, query: ListDto) => ({items,total,page:query.page,limit:query.limit,totalPages:Math.ceil(total/query.limit)});
 export const like = (value: string) => '%' + value.replace(/[[\]%_]/g, c => '['+c+']') + '%';
 

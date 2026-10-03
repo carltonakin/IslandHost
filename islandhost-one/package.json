@@ -11,6 +11,8 @@
                 },
     "scripts":  {
                     "dev":  "concurrently -n API,WEB -c cyan,green \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+                    "start": "npm run start -w backend",
+                    "start:frontend": "npm run start -w frontend",
                     "build":  "npm run build -w backend \u0026\u0026 npm run build -w frontend",
                     "typecheck":  "npm run typecheck -w backend \u0026\u0026 npm run typecheck -w frontend",
                     "lint":  "eslint backend/src backend/test frontend/src",

@@ -23,3 +23,18 @@ Node.js 22+, persistent frontend and API Node processes/sites or equivalent supp
 11. Verify persistent process restarts, log rotation, backups, monitoring and forward recovery procedures.
 
 Migrations never run automatically on application startup and destructive down migrations are disabled. No Azure, Redis, Docker or Kubernetes is required. This local build does not provision a hosting account, production database, public DNS/TLS or SMTP service.
+
+## Railpack deployment
+
+Use two services to retain the existing frontend/API separation. Set each service's root directory to `islandhost-one`, which contains the npm workspace manifest and lockfile.
+
+| Service | Build command | Start command | Bind address |
+| --- | --- | --- | --- |
+| API | `npm run build -w backend` | `npm run start` | `API_BIND_HOST=0.0.0.0` |
+| Frontend | `npm run build -w frontend` | `npm run start:frontend` | `HOSTNAME=0.0.0.0` |
+
+Railpack installs dependencies from the lockfile. Override its build command per service as above, or use the default root `npm run build` to build both workspaces. Root `start` delegates to the existing backend `node dist/main.js`; it does not launch the frontend. Each service uses its own platform-provided `PORT`.
+
+The frontend build includes a postbuild step that copies `public` and `.next/static` into `.next/standalone/frontend`. Its start command runs the generated `.next/standalone/frontend/server.js`. Retain the full standalone directory, including its traced dependencies. See [Next.js standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output) and [Railpack Node.js scripts](https://railpack.com/languages/node/).
+
+Configure `API_URL` to the backend address reachable from the frontend service **before building the frontend**. The existing API rewrite captures that address at build time, so changing it requires a rebuild. Use the public HTTPS frontend URL for `APP_URL`, and configure the API's production database, JWT, cookie and SMTP settings as described above. Use the default SQL Server driver over TCP for deployment; the optional Windows native driver is restricted to local development. Run migrations explicitly before release.
