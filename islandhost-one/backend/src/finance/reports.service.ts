@@ -1,0 +1,30 @@
+import { BadRequestException,Injectable } from '@nestjs/common';
+import { Db } from '../database/db';
+import { bahamasToday } from '../common/types';
+import { Phase2ListDto } from '../phase2/phase2.dto';
+import { dateRange } from '../phase2/support';
+@Injectable()
+export class ReportsService {
+ constructor(private db:Db){}
+ async summary(q:Phase2ListDto){
+  dateRange(q);const today=bahamasToday(),from=q.from||today.slice(0,4)+'-01-01',to=q.to||today;
+  if(from>to||new Date(to).getTime()-new Date(from).getTime()>366*5*86400000)throw new BadRequestException('Choose a date range of at most five years.');
+  const p=[from,to,today,q.tripId||null];
+  const invoiceScope="i.Status NOT IN ('Draft','Cancelled') AND i.IssuedDate BETWEEN @0 AND @1 AND (@3 IS NULL OR i.TripId=@3)";
+  const invoiceCte="WITH billed AS (SELECT i.*,CAST((i.Total-i.Tax)*(1-i.RefundedAmount/NULLIF(i.Total,0)) AS decimal(14,2)) Revenue FROM Invoices i WHERE "+invoiceScope+") ";
+  const costCte="costs AS (SELECT a.TripId,r.ServiceId,a.Cost Amount,a.VendorId FROM VendorAssignments a JOIN ServiceRequests r ON r.Id=a.RequestId WHERE a.Status IN ('Assigned','Accepted','In Progress','Completed') AND r.PreferredDate BETWEEN @0 AND @1 AND (@3 IS NULL OR a.TripId=@3) UNION ALL SELECT t.TripId,r.ServiceId,t.DirectCost Amount,CAST(NULL AS uniqueidentifier) VendorId FROM Transfers t JOIN ServiceRequests r ON r.Id=t.RequestId WHERE t.Status NOT IN ('Cancelled','No Show') AND t.ScheduledDate BETWEEN @0 AND @1 AND (@3 IS NULL OR t.TripId=@3)) ";
+  const [invoices,payments,costs,monthly,byCategory,byService,byTrip,methods,vendors,outstanding]=await Promise.all([
+   this.db.one(invoiceCte+"SELECT COALESCE(SUM(Revenue),0) Revenue,COALESCE(SUM(Total),0) GrossBilled,COALESCE(SUM(Tax),0) BilledTax,COALESCE(SUM(BalanceDue),0) OutstandingBalances,COUNT(*) InvoicesIssued,COALESCE(SUM(CASE WHEN Status='Paid' THEN 1 ELSE 0 END),0) PaidInvoices,COALESCE(SUM(CASE WHEN BalanceDue>0 AND DueDate<@2 THEN 1 ELSE 0 END),0) OverdueInvoices,COALESCE(AVG(Total),0) AverageBookingValue FROM billed",p),
+   this.db.one("SELECT (SELECT COALESCE(SUM(pa.Amount),0) FROM Payments pa JOIN Invoices i ON i.Id=pa.InvoiceId WHERE pa.Status IN ('Paid','Partially Refunded','Refunded') AND pa.ReceivedDate BETWEEN @0 AND @1 AND (@3 IS NULL OR i.TripId=@3)) GrossPayments,(SELECT COALESCE(SUM(r.Amount),0) FROM Refunds r JOIN Payments pa ON pa.Id=r.PaymentId JOIN Invoices i ON i.Id=pa.InvoiceId WHERE r.Status='Paid' AND r.RefundedDate BETWEEN @0 AND @1 AND (@3 IS NULL OR i.TripId=@3)) Refunds",p),
+   this.db.one("WITH "+costCte+"SELECT COALESCE(SUM(CASE WHEN VendorId IS NOT NULL THEN Amount ELSE 0 END),0) VendorCosts,COALESCE(SUM(CASE WHEN VendorId IS NULL THEN Amount ELSE 0 END),0) TransportationCosts,COALESCE(SUM(Amount),0) TotalCosts FROM costs",p),
+   this.db.query(invoiceCte+"SELECT CONVERT(char(7),IssuedDate,126) Month,SUM(Revenue) Revenue,SUM(Total) GrossBilled FROM billed GROUP BY CONVERT(char(7),IssuedDate,126) ORDER BY Month",p),
+   this.db.query(invoiceCte+"SELECT TOP(100) COALESCE(it.CategoryName,'Other') Name,CAST(SUM(b.Revenue*it.LineTotal/NULLIF(b.Subtotal,0)) AS decimal(14,2)) Revenue FROM billed b JOIN InvoiceItems it ON it.InvoiceId=b.Id GROUP BY it.CategoryName ORDER BY Revenue DESC",p),
+   this.db.query(invoiceCte.trimEnd().replace(/\)$/,')')+", "+costCte+", sales AS (SELECT it.ServiceId,MAX(COALESCE(it.ServiceName,it.Description)) Name,SUM(b.Revenue*it.LineTotal/NULLIF(b.Subtotal,0)) Revenue FROM billed b JOIN InvoiceItems it ON it.InvoiceId=b.Id GROUP BY it.ServiceId), spending AS (SELECT ServiceId,SUM(Amount) Cost FROM costs GROUP BY ServiceId) SELECT TOP(100) COALESCE(s.Name,sv.Name,'Other') Name,COALESCE(s.ServiceId,c.ServiceId) ServiceId,CAST(COALESCE(s.Revenue,0) AS decimal(14,2)) Revenue,COALESCE(c.Cost,0) Cost,CAST(COALESCE(s.Revenue,0)-COALESCE(c.Cost,0) AS decimal(14,2)) GrossProfit FROM sales s FULL OUTER JOIN spending c ON c.ServiceId=s.ServiceId LEFT JOIN Services sv ON sv.Id=c.ServiceId ORDER BY Revenue DESC",p),
+   this.db.query(invoiceCte.trimEnd()+", "+costCte+", sales AS (SELECT TripId,SUM(Revenue) Revenue FROM billed GROUP BY TripId), spending AS (SELECT TripId,SUM(Amount) Cost FROM costs GROUP BY TripId) SELECT TOP(100) t.Id TripId,t.Name,COALESCE(s.Revenue,0) Revenue,COALESCE(c.Cost,0) Cost,COALESCE(s.Revenue,0)-COALESCE(c.Cost,0) GrossProfit FROM sales s FULL OUTER JOIN spending c ON c.TripId=s.TripId JOIN Trips t ON t.Id=COALESCE(s.TripId,c.TripId) ORDER BY Revenue DESC",p),
+   this.db.query("SELECT pa.Method Name,SUM(pa.Amount) GrossPayments,SUM(pa.Amount-pa.RefundedAmount) NetPayments FROM Payments pa JOIN Invoices i ON i.Id=pa.InvoiceId WHERE pa.Status IN ('Paid','Partially Refunded','Refunded') AND pa.ReceivedDate BETWEEN @0 AND @1 AND (@3 IS NULL OR i.TripId=@3) GROUP BY pa.Method ORDER BY GrossPayments DESC",p),
+   this.db.query("WITH "+costCte+"SELECT TOP(100) v.Name,SUM(c.Amount) Cost FROM costs c JOIN Vendors v ON v.Id=c.VendorId GROUP BY v.Id,v.Name ORDER BY Cost DESC",p),
+   this.db.query(invoiceCte+"SELECT TOP(20) b.Id,b.InvoiceNumber,b.DueDate,b.BalanceDue,c.DisplayName CustomerName FROM billed b JOIN Customers c ON c.Id=b.CustomerId WHERE b.BalanceDue>0 ORDER BY b.DueDate,b.Id",p)
+  ]);
+  return {currency:'USD',from,to,kpis:{...invoices,...payments,...costs,PaymentsReceived:Number(payments?.GrossPayments||0)-Number(payments?.Refunds||0),GrossProfit:Number(invoices?.Revenue||0)-Number(costs?.TotalCosts||0)},monthly,byCategory,byService,byTrip,methods,vendors,outstanding,definitions:{revenue:'Issued invoice value excluding tax, reduced proportionally by refunds; filtered by invoice issue date.',payments:'Gross receipts less refunds settled in the date range.',receivables:'Outstanding amounts on invoices issued in the range. Refund credits do not reopen balances.',cost:'Committed vendor and direct transportation costs for service dates in the range.',profit:'Net billed revenue less committed costs; an operational estimate, not an accounting ledger.',limits:'Service, category, trip and vendor breakdowns show the top 100 groups; outstanding preview shows 20 invoices.'}};
+ }
+}

@@ -1,0 +1,14 @@
+.tools/
+islandhost-one/node_modules/
+islandhost-one/**/node_modules/
+islandhost-one/**/dist/
+islandhost-one/**/.next/
+islandhost-one/**/coverage/
+islandhost-one/**/tsconfig.tsbuildinfo
+islandhost-one/.env
+islandhost-one/.env.test
+islandhost-one/.local-mail/
+islandhost-one/.runtime/
+*.log
+
+/islandhostlive-V1

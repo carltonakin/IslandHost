@@ -1,0 +1,57 @@
+import { test,expect,Page } from '@playwright/test';
+import { config } from 'dotenv';
+config({path:'.env',quiet:true});
+async function login(page:Page,staff=false){
+ await page.goto('/login');
+ await page.getByLabel('Email address',{exact:true}).fill((staff?process.env.SEED_ADMIN_EMAIL:process.env.SEED_CUSTOMER_EMAIL)!);
+ await page.getByLabel('Password',{exact:true}).fill(process.env.SEED_PASSWORD!);
+ await page.getByRole('button',{name:'Step into your Bahamas'}).click();
+ await expect(page.getByRole('heading',{level:1})).toHaveText(staff?'A beautiful day to make it effortless.':/Welcome back/,{timeout:30000});
+}
+test('guest plans a trip and staff confirms the requested experience',async({page})=>{
+ const tripName='Browser acceptance '+Date.now();
+ await login(page);
+ await page.goto('/trips');
+ await page.getByRole('button',{name:'New experience',exact:true}).click();
+ const trip=page.getByRole('dialog');
+ await trip.getByLabel(/Give your experience a name/).fill(tripName);
+ await trip.getByLabel(/Arrival date/).fill('2027-03-10');
+ await trip.getByLabel(/Departure date/).fill('2027-03-15');
+ await trip.getByRole('button',{name:'Continue',exact:true}).click();
+ await expect(trip.getByLabel('Arrival flight',{exact:true})).toBeVisible();
+ await trip.getByLabel('Arrival flight',{exact:true}).fill('AA 1200');
+ await trip.getByLabel('A special occasion',{exact:true}).fill('Anniversary');
+ await trip.getByRole('button',{name:'Create my experience'}).click();
+ await expect(trip).not.toBeVisible();
+ await expect(page.getByRole('heading',{name:tripName})).toBeVisible();
+ await page.goto('/services');
+ await page.getByRole('link',{name:'View A day on the turquoise',exact:true}).click();
+ await page.getByRole('button',{name:'Request this experience'}).click();
+ const request=page.getByRole('dialog');
+ await request.getByRole('textbox',{name:'Search trip',exact:true}).fill(tripName);
+ await request.getByRole('combobox',{name:'Trip',exact:true}).selectOption({label:tripName});
+ await request.getByLabel(/Preferred date/).fill('2027-03-11');
+ await request.getByLabel(/Preferred time/).fill('16:30');
+ await request.getByLabel('Anything we should know?',{exact:true}).fill('No shellfish, please.');
+ await request.getByRole('button',{name:'Send my request'}).click();
+ await expect(request).not.toBeVisible();
+ await page.goto('/requests');
+ await page.locator('.table-row').first().click();
+ await expect(page.locator('.page-title .status')).toHaveText('Requested');
+ const requestPath=new URL(page.url()).pathname;
+ await page.locator('.user-toggle').click();
+ await page.getByRole('button',{name:'Sign out',exact:true}).click();
+ await login(page,true);
+ await page.goto(requestPath);
+ for(const status of ['Under Review','Confirmed']){
+  await page.getByRole('button',{name:status,exact:true}).click();
+  await page.getByRole('dialog').getByLabel('A note about this update',{exact:true}).fill('Arranged through the browser acceptance workflow.');
+  await page.getByRole('button',{name:'Update request',exact:true}).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await expect(page.locator('.page-title .status')).toHaveText(status);
+ }
+ await page.goto('/itinerary');
+ await page.getByRole('combobox',{name:'Select itinerary trip'}).selectOption({label:tripName+' · Morgan Ellis'});
+ await expect(page.getByRole('heading',{name:'A day on the turquoise'})).toBeVisible();
+ await expect(page.locator('.event-card .status')).toHaveText('Confirmed');
+});
