@@ -7,11 +7,27 @@ const root = path.resolve(__dirname, '..');
 config({ path: path.join(root, '.env'), quiet: true });
 // Use this Node runtime for both child processes, including portable Windows installs.
 process.env.PATH = path.dirname(process.execPath) + path.delimiter + (process.env.PATH || '');
-const [mode, service] = process.argv.slice(2);
-if (!['dev', 'start'].includes(mode) || (service && !['api', 'web'].includes(service))) {
-  console.error('Usage: node scripts/run.cjs <dev|start> [api|web]');
+function startupError(message) {
+  console.error('IslandHost startup error: ' + message);
   process.exit(1);
 }
+function tcpPort(value, label) {
+  const port = String(value ?? '').trim();
+  if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+    startupError(label + ' must be a number from 1 to 65535. Check the hosted web.config port assignment.');
+  }
+  return String(Number(port));
+}
+const [mode, target, assignedPort, ...extra] = process.argv.slice(2);
+const iisLaunch = target === '--iis-port';
+const service = iisLaunch ? undefined : target;
+if (!['dev', 'start'].includes(mode) || (service && !['api', 'web'].includes(service)) ||
+    extra.length || (!iisLaunch && assignedPort !== undefined) || (iisLaunch && mode !== 'start')) {
+  startupError('Usage: node scripts/run.cjs <dev|start> [api|web], or start --iis-port <assigned-port>');
+}
+// HttpPlatformHandler expands this argument before launching Node. Never allow
+// an absent or unexpanded IIS assignment to become Next's silent 3000 fallback.
+const iisPort = iisLaunch ? tcpPort(assignedPort, 'IIS assigned port') : undefined;
 const includeApi = service !== 'web';
 const includeWeb = service !== 'api';
 const apiEntry = path.join(root, 'dist/server/main.js');
@@ -23,14 +39,30 @@ if (mode === 'start' && ((includeApi && !existsSync(apiEntry)) || (includeWeb &&
 
 // PORT belongs to the public web server when both services share a host.
 // An API-only deployment can still use its platform-provided PORT or named pipe.
-const apiPort = (service === 'api' && process.env.PORT) || process.env.API_PORT || '4000';
+let apiPort = (service === 'api' && process.env.PORT) || process.env.API_PORT || '4000';
 let webPort;
+let webPortSource;
 if (includeWeb) {
   if (!process.env.APP_URL) {
     console.error('APP_URL must be configured in .env or the environment.');
     process.exit(1);
   }
-  webPort = process.env.PORT || process.env.WEB_PORT || new URL(process.env.APP_URL).port || '3000';
+  if (iisLaunch) {
+    webPort = iisPort;
+    webPortSource = 'IIS';
+  } else if (process.env.PORT) {
+    webPort = process.env.PORT;
+    webPortSource = 'PORT';
+  } else if (process.env.WEB_PORT) {
+    webPort = process.env.WEB_PORT;
+    webPortSource = 'WEB_PORT';
+  } else {
+    const appPort = new URL(process.env.APP_URL).port;
+    webPort = appPort || '3000';
+    webPortSource = appPort ? 'APP_URL' : 'default';
+  }
+  webPort = tcpPort(webPort, 'Public web port');
+  if (includeApi) apiPort = tcpPort(apiPort, 'API_PORT');
   if (!service && apiPort === webPort) {
     console.error('The web server and API need different ports. Set API_PORT to an unused port and update API_URL.');
     process.exit(1);
@@ -68,6 +100,7 @@ if (includeWeb) {
     },
   });
   console.log(`IslandHost web: ${process.env.APP_URL}`);
+  console.log(`IslandHost ports: web=${webPort} source=${webPortSource} api=${includeApi ? apiPort : 'disabled'}`);
 }
 const { result } = concurrently(commands, {
   cwd: root, prefix: 'name', killOthersOn: ['failure', 'success'], killTimeout: 5000,

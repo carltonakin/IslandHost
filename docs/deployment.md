@@ -11,7 +11,7 @@ Node.js 22+, persistent frontend and API Node processes/sites or equivalent supp
 
 ## SmarterASP.NET web.config and login failures
 
-SmarterASP.NET's [Node.js quick start](https://www.smarterasp.net/support/kb/a1970/quick-start-node_js.aspx) uses IIS HttpPlatformHandler and assigns the public Node port through `PORT=%HTTP_PLATFORM_PORT%`. The root `web.config` starts `node scripts/run.cjs start`, which launches both the web server and API. Upload it beside `package.json`, retaining any additional settings your hosting account needs. It preserves the supplied site's LOCALAPPDATA/NEXT_SWC_PATH overrides; adjust those absolute paths for another account or site.
+SmarterASP.NET's [Node.js quick start](https://www.smarterasp.net/support/kb/a1970/quick-start-node_js.aspx) uses IIS HttpPlatformHandler and assigns the public Node port through `PORT=%HTTP_PLATFORM_PORT%`. The root `web.config` starts `node scripts/run.cjs start --iis-port %HTTP_PLATFORM_PORT%`; IIS expands the assigned port in that argument. The launcher validates it, supplies it to the web child as PORT, and starts the API on its separate API_PORT. Upload scripts/run.cjs first, then web.config beside package.json, retaining any additional settings your hosting account needs. It preserves the supplied site's LOCALAPPDATA/NEXT_SWC_PATH overrides; adjust those absolute paths for another account or site.
 
 The public web server receives IIS's assigned PORT; the API uses API_PORT on loopback. There must be only one launcher instance for a fixed API port. If logs report EADDRINUSE, resolve the occupied port or select an available API_PORT and rebuild the web app with the matching API_URL.
 
@@ -39,6 +39,8 @@ Build the API with `npm run build:api` after startup diagnostic changes. If API_
 
 The supplied web.config logs stdout/stderr to an `islandhost-node.log` file or a provider-suffixed variant in the site root. The previous configuration used `log.txt`. Read the log after restarting and look for:
 
+- `IslandHost ports: web=<assigned-port> source=IIS api=4000`: the updated IIS launcher received a numeric port; compare it with the subsequent Next listener log. This line reports configuration, not readiness.
+- `IslandHost startup error`: fix the named port/launcher setting. An unexpanded IIS token must not be placed in .env.
 - `IslandHost API configuration error`: fix the named setting; values are not logged.
 - `api_start_failed`: inspect the safe error code/SQL number and database connectivity.
 - `Failed to proxy` / `ECONNREFUSED`: the built API target is not accepting connections.

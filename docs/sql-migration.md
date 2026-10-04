@@ -1,6 +1,6 @@
 # SQL migration runbook and verification report
 
-Report date: 2026-10-03. **The hosted SQL database migration is complete and verified. The public IIS application deployment remains pending.** The provided protected migration password authenticated successfully using encrypted TCP with certificate verification. The source data was backed up and transferred to the requested target.
+Report updated: 2026-10-04. **The hosted SQL migration, public API health, and existing administrator/member authentication are verified.** Public HTTPS checks passed on October 4; live SMTP delivery and optional WebSocket behavior remain unverified. The provided protected migration password authenticated successfully using encrypted TCP with certificate verification. The source data was backed up and transferred to the requested target.
 
 Target: `sql8011.site4now.net`, database `db_9aa62b_islandhost`, login `db_9aa62b_islandhost_admin`. Public site: https://carlitoh-001-site8.dtempurl.com/.
 
@@ -89,13 +89,13 @@ All four existing users and four role assignments were preserved without passwor
 - Lint and API/UI type checks passed. Root production build passed, including both API compilation and Next standalone output. A prior build attempt hit a Windows file lock from the old running preview; stopping that known workspace process resolved it.
 - Compiled root npm start passed against the migrated local test database: /login 200, /api/health 200, unauthenticated /api/auth/me 401 and empty same-origin login POST 400. All 7 desktop/mobile browser tests passed on the rebuilt app.
 
-The production startup path uses `web.config` -> `node scripts/run.cjs start`, with IIS PORT assigned to Next and API_PORT assigned to Nest. The prepared configuration retains the account-specific LOCALAPPDATA/NEXT_SWC_PATH values supplied by the user. The local compiled startup uses development SQL/cookie/mail settings; it is not evidence of a successful hosted production startup.
+The production startup path uses `web.config` -> `node scripts/run.cjs start --iis-port %HTTP_PLATFORM_PORT%`, with IIS PORT assigned to Next and API_PORT assigned to Nest. The prepared configuration retains the account-specific LOCALAPPDATA/NEXT_SWC_PATH values supplied by the user. The local compiled startup uses development SQL/cookie/mail settings; it is not evidence of a successful hosted production startup.
 
-## Hosted verification and blockers
+## Earlier hosted verification (October 3)
 
 At 2026-10-03T17:11:09Z, a direct HTTP check returned `/login` 200, `/api/health` 500, `/api/auth/me` 500 and an empty, same-origin `/api/auth/login` POST 500. The API responses were plain `Internal Server Error`, without the normal JSON envelope. No account password was submitted to the host. This establishes that the hosted API path is failing before a normal authentication response; it does not prove the exact cause.
 
-The target database has been authenticated and migrated: 39 application tables and both migration-history entries are present, and all 194 original records were inserted and reconciled. Hosted runtime SQL/JWT/SMTP settings, deployment access and the server startup log are still needed to finish public application verification. No repository changes have been uploaded to SmarterASP.NET. Live SMTP delivery, IIS WebSockets and login through the public IIS site remain unverified. The following section records the direct hosted-database verification separately.
+The target database has been authenticated and migrated: 39 application tables and both migration-history entries are present, and all 194 original records were inserted and reconciled. At that stage, hosted runtime settings and the startup log were still needed to finish public verification; the public deployment update had not yet been verified. Live SMTP delivery, IIS WebSockets and login through the public IIS site were unverified. See the October 4 results below for the current status. The following section records the direct hosted-database verification separately.
 
 See [the exact environment checklist](smarterasp-environment.md) for Required/Optional, Build/Runtime, purposes, safe examples and configuration locations. See [deployment instructions](deployment.md) for IIS logging and API diagnostics.
 
@@ -134,4 +134,12 @@ Hosted identity/CRUD checks passed at 2026-10-03T21:33:27Z using the compiled AP
 
 Release package: `.runtime/releases/islandhost-smarterasp-20261003-163533.zip`. See [upload steps](smarterasp-upload.md) and [production environment template](smarterasp.env.example). The standalone output was scanned across 2,251 compiled/runtime files (about 48 MiB): no copied environment files or literal configured secrets were found. A separate review of tracked/reviewable files likewise found no configured secret values; no commit was created.
 
-After the database migration, the public check at 2026-10-03T21:32:39Z still returned plain HTTP 500 for all three API probes; the login-page GET timed out on that attempt. The earlier login-page GET returned 200. The hosted application remains unverified and needs the release/configuration update; the database migration alone did not resolve the public API failure.
+After the database migration, the public check at 2026-10-03T21:32:39Z still returned plain HTTP 500 for all three API probes; the login-page GET timed out on that attempt. The earlier login-page GET returned 200. At that stage the hosted application still needed the release/configuration update; the database migration alone had not resolved the public API failure.
+
+## Public IIS verification completed October 4
+
+The owner deployed the startup/configuration updates and reported a successful health response. Independent HTTPS checks at 2026-10-04T18:35:08Z confirmed /login returned HTML 200, /api/health returned JSON 200 with status ok, unauthenticated /api/auth/me returned JSON 401, and an empty same-origin POST to /api/auth/login returned JSON 400. The previous plain 500 responses/timeouts were no longer present during these checks.
+
+From 2026-10-04T18:36:35Z to 18:36:39Z, the existing SuperAdmin and Customer accounts each signed in through the public site using their existing protected credentials. All 22 authentication/authorization checks passed: expected roles, Secure/HttpOnly/SameSite=Lax cookies, authenticated identity, dashboard and trip reads, session renewal, logout, and rejection of the revoked access cookie. /api/users returned 200 for SuperAdmin and 403 for Customer. Both verification sessions were signed out and revoked. No password, role assignment or business record was changed. The login checks create normal authentication-session records.
+
+Private evidence: `.runtime/hosted-site-verification-20261004.json`, containing timestamps, check names and outcomes without credentials, cookies or personal account details. These are direct HTTPS/API checks against the deployed IIS site, not a new browser UI test run. SMTP password-reset delivery, optional IIS WebSockets, and sustained uptime/recycling have not been verified by these checks. The earlier database snapshots and counts remain historical migration evidence; application activity can add or change rows afterward.

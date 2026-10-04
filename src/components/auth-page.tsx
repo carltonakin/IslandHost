@@ -4,7 +4,7 @@ import { useSearchParams,useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowRight,ArrowLeft,Eye,EyeOff,LoaderCircle } from 'lucide-react';
-import { Brand } from './shell';
+import { Brand } from './brand';
 import { Actor,write } from '@/lib/api';
 import { ErrorState } from './ui';
 function AuthForm({mode}:{mode:'login'|'forgot'|'reset'}){

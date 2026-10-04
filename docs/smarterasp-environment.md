@@ -1,8 +1,10 @@
 # SmarterASP.NET environment checklist
 
-Audited against the repository on 2026-10-03. The deployment root is this repository's root, with one package.json and one lockfile. Next.js serves the UI and proxies `/api/*` to Nest. `npm start` launches both processes; IIS assigns the public web port and the API listens on a separate loopback port.
+Audited against the repository on 2026-10-04. The deployment root is this repository's root, with one package.json and one lockfile. Next.js serves the UI and proxies `/api/*` to Nest. `npm start` launches both processes; IIS assigns the public web port and the API listens on a separate loopback port.
 
-Enter the required runtime values in SmarterASP.NET's protected application environment, inherited by the process in web.config. If this plan exposes no environment editor, use a private root `.env` excluded from source control and public downloads. The checked-in web.config contains only non-secret process settings. Do not upload the workstation `.env`: it selects a local development database and file mail.
+Enter the required runtime values in SmarterASP.NET's protected application environment, inherited by the process in web.config. If this plan exposes no environment editor, use a private root `.env` excluded from source control and public downloads. The checked-in web.config supplies this site's non-secret production settings, including the TCP driver, secure cookies and verified SQL TLS. These IIS values take precedence over .env; change them in web.config when adapting to another site. Database credentials, JWT secrets and real SMTP settings must still be supplied privately. Do not upload the workstation `.env`: it selects a local development database and file mail.
+
+The supplied web.config also passes `%HTTP_PLATFORM_PORT%` as the launcher argument `--iis-port`. IIS must replace that token with its assigned numeric port. This explicit assignment takes precedence over PORT and .env for the web child; API_PORT still controls the separate API listener. Do not put `%HTTP_PLATFORM_PORT%` into .env: dotenv does not expand IIS tokens. Upload scripts/run.cjs together with web.config when applying this launcher update.
 
 Set API_URL in the trusted build environment as well as the hosted runtime. It is server-only, but Next embeds its value in the build's proxy configuration. Browser requests use relative `/api` URLs. Rebuild after changing API_URL or SERVICE_IMAGE_HOSTS. Do not point API_URL back at the public Next site.
 
@@ -13,10 +15,10 @@ Examples in angle brackets are placeholders, not literal values. "Runtime" inclu
 | Variable | Required/Optional | Build/Runtime | Purpose | Safe example | Where to configure |
 | --- | --- | --- | --- | --- | --- |
 | NODE_ENV | REQUIRED | RUNTIME | Enable production validation | `production` | Hosted environment; already set by web.config |
-| APP_URL | REQUIRED | RUNTIME | Public origin for CSRF, CORS, password recovery and launcher | `https://carlitoh-001-site8.dtempurl.com` | Hosted environment |
-| API_URL | REQUIRED | BUILD_AND_RUNTIME | Next proxy destination; API validates presence | `http://127.0.0.1:4000` | Build environment AND hosted environment |
+| APP_URL | REQUIRED | RUNTIME | Public origin for CSRF, CORS, password recovery and launcher | `https://carlitoh-001-site8.dtempurl.com` | Supplied web.config |
+| API_URL | REQUIRED | BUILD_AND_RUNTIME | Next proxy destination; API validates presence | `http://127.0.0.1:4000` | Build environment AND supplied web.config |
 | PORT | REQUIRED for IIS | RUNTIME | Public web port assigned by HttpPlatformHandler | `%HTTP_PLATFORM_PORT%` | Supplied web.config; do not hardcode a public port |
-| API_PORT | OPTIONAL; default 4000 | RUNTIME | Separate API listener, matching API_URL | `4000` | Hosted environment; recommended explicit |
+| API_PORT | OPTIONAL; default 4000 | RUNTIME | Separate API listener, matching API_URL | `4000` | Supplied web.config |
 | API_BIND_HOST | OPTIONAL; default loopback | RUNTIME | API listener address | `127.0.0.1` | Supplied web.config |
 | WEB_BIND_HOST | OPTIONAL; launcher defaults to all interfaces | RUNTIME | Web listener behind IIS | `127.0.0.1` | Supplied web.config |
 | WEB_PORT | OPTIONAL | RUNTIME | Fallback when PORT is absent | `3000` | Local or non-IIS environment; omit on SmarterASP |
@@ -25,13 +27,13 @@ Examples in angle brackets are placeholders, not literal values. "Runtime" inclu
 | DB_DATABASE | REQUIRED | RUNTIME | Target database | `db_9aa62b_islandhost` | Hosted environment |
 | DB_USERNAME | REQUIRED | RUNTIME | SQL login | `db_9aa62b_islandhost_admin` | Hosted environment; preferably use a restricted runtime login after migration |
 | DB_PASSWORD | REQUIRED; secret | RUNTIME | SQL authentication | `<database-password>` | Hosted secret environment only |
-| DB_DRIVER | OPTIONAL; normal TCP driver by default | RUNTIME | Driver selection | `tcp` | Omit or use tcp; native is rejected in production |
-| DB_ENCRYPT | REQUIRED in production | RUNTIME | Encrypt SQL connection | `true` | Hosted environment |
-| DB_TRUST_CERTIFICATE | OPTIONAL; defaults false, true prohibited in production | RUNTIME | Require valid SQL certificate | `false` | Hosted environment; recommended explicit |
+| DB_DRIVER | OPTIONAL; normal TCP driver by default | RUNTIME | Driver selection | `tcp` | Supplied web.config; native is rejected in production |
+| DB_ENCRYPT | REQUIRED in production | RUNTIME | Encrypt SQL connection | `true` | Supplied web.config |
+| DB_TRUST_CERTIFICATE | OPTIONAL; defaults false, true prohibited in production | RUNTIME | Require valid SQL certificate | `false` | Supplied web.config |
 | JWT_SECRET | REQUIRED; secret, at least 48 characters | RUNTIME | Sign access tokens | `<random-access-signing-secret>` | Hosted secret environment only |
 | JWT_REFRESH_SECRET | REQUIRED; secret, at least 48 characters, different from JWT_SECRET | RUNTIME | Sign refresh tokens | `<different-random-refresh-secret>` | Hosted secret environment only |
-| COOKIE_SECURE | REQUIRED in production | RUNTIME | HTTPS-only authentication cookies | `true` | Hosted environment |
-| MAIL_MODE | REQUIRED in production | RUNTIME | Password recovery transport | `smtp` | Hosted environment |
+| COOKIE_SECURE | REQUIRED in production | RUNTIME | HTTPS-only authentication cookies | `true` | Supplied web.config |
+| MAIL_MODE | REQUIRED in production | RUNTIME | Password recovery transport | `smtp` | Supplied web.config |
 | SMTP_HOST | REQUIRED in production | RUNTIME | SMTP server | `smtp.example.com` | Hosted environment |
 | SMTP_FROM | REQUIRED in production | RUNTIME | Verified sender | `IslandHost <no-reply@example.com>` | Hosted environment |
 | SMTP_PORT | OPTIONAL; default 587 | RUNTIME | SMTP submission port | `587` | Hosted environment |
@@ -39,7 +41,7 @@ Examples in angle brackets are placeholders, not literal values. "Runtime" inclu
 | SMTP_USER | OPTIONAL; required if provider requires authentication | RUNTIME | SMTP login | `<smtp-user>` | Hosted secret environment |
 | SMTP_PASSWORD | REQUIRED when SMTP_USER is set; secret | RUNTIME | SMTP authentication | `<smtp-password>` | Hosted secret environment only |
 | TRUST_PROXY | OPTIONAL; default false | RUNTIME | Trust exactly one proxy hop when true | `false` | Hosted environment; change only after verifying the actual proxy chain |
-| SWAGGER_ENABLED | OPTIONAL; production always disables it | RUNTIME | Development API documentation | `false` | Hosted environment |
+| SWAGGER_ENABLED | OPTIONAL; production always disables it | RUNTIME | Development API documentation | `false` | Supplied web.config |
 | SERVICE_IMAGE_HOSTS | OPTIONAL | BUILD_AND_RUNTIME | Comma-separated allowed HTTPS image hosts | `images.example.com` | Build AND hosted environment; omit for local assets |
 | PAYMENT_PROVIDER | OPTIONAL; default manual | RUNTIME | Record externally settled payments/refunds | `manual` | Hosted environment; manual is the only implemented adapter |
 | REALTIME_ENABLED | OPTIONAL; default false | RUNTIME | Authenticated WebSocket refresh events | `false` | Hosted environment; leave disabled until IIS/WebSocket proxy path is verified |
