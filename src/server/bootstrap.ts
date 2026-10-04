@@ -1,6 +1,7 @@
 import { INestApplication,ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder,SwaggerModule } from '@nestjs/swagger';
+import { WsAdapter } from '@nestjs/platform-ws';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { Request,Response,NextFunction } from 'express';
@@ -9,6 +10,7 @@ import { Envelope,Errors } from './common/http';
 import { registerRequestSchemas } from './common/openapi';
 export function configureApp(app:INestApplication){
  app.setGlobalPrefix('api');
+ app.useWebSocketAdapter(new WsAdapter(app));
  (app as NestExpressApplication).set('trust proxy',process.env.TRUST_PROXY==='true'?1:false);
  app.use(helmet());
  app.use(cookieParser());

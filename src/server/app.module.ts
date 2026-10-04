@@ -20,10 +20,26 @@ import { InboxService } from './system/inbox.service';
 import { DashboardService } from './system/dashboard.service';
 import { UsersController,SystemController } from './system/system.controller';
 import { HealthController } from './health.controller';
+import { QuotesController,InvoicesController,PaymentsController,RefundsController,FinancialDashboardController } from './finance/finance.controller';
+import { FinancialCore } from './finance/financial-core';
+import { QuotesService } from './finance/quotes.service';
+import { InvoicesService } from './finance/invoices.service';
+import { PaymentsService } from './finance/payments.service';
+import { ReportsService } from './finance/reports.service';
+import { ManualPaymentProvider,PaymentProviders } from './finance/payment-provider';
+import { VendorsController,AssignmentsController } from './partners/partners.controller';
+import { VendorsService } from './partners/vendors.service';
+import { AssignmentsService } from './partners/assignments.service';
+import { DriversController,VehiclesController,TransfersController,DispatchController } from './transport/transport.controller';
+import { FleetService } from './transport/fleet.service';
+import { TransfersService } from './transport/transfers.service';
+import { ConversationsController } from './communications/communications.controller';
+import { ConversationsService } from './communications/conversations.service';
+import { RealtimeGateway } from './communications/realtime.gateway';
 @Global() @Module({
  imports:[JwtModule.register({}),ThrottlerModule.forRoot([{ttl:60000,limit:180}])],
- controllers:[HealthController,AuthController,CategoriesController,ServicesController,CustomersController,TripsController,RequestsController,ItinerariesController,UsersController,SystemController],
- providers:[Db,AuthService,Mailer,CatalogService,CustomersService,TripsService,RequestsService,ItinerariesService,UsersService,InboxService,DashboardService,{provide:APP_GUARD,useClass:ThrottlerGuard},{provide:APP_GUARD,useClass:AccessGuard}],
+ controllers:[HealthController,AuthController,CategoriesController,ServicesController,CustomersController,TripsController,RequestsController,ItinerariesController,UsersController,SystemController,QuotesController,InvoicesController,PaymentsController,RefundsController,FinancialDashboardController,VendorsController,AssignmentsController,DriversController,VehiclesController,TransfersController,DispatchController,ConversationsController],
+ providers:[Db,AuthService,Mailer,CatalogService,CustomersService,TripsService,RequestsService,ItinerariesService,UsersService,InboxService,DashboardService,FinancialCore,QuotesService,InvoicesService,PaymentsService,ReportsService,ManualPaymentProvider,PaymentProviders,VendorsService,AssignmentsService,FleetService,TransfersService,ConversationsService,RealtimeGateway,{provide:APP_GUARD,useClass:ThrottlerGuard},{provide:APP_GUARD,useClass:AccessGuard}],
  exports:[Db]
 })
 export class AppModule {}

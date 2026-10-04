@@ -4,6 +4,8 @@ TypeORM manages the SQL Server connection pool, migrations and transactions. Exp
 
 Business tables: Users, Roles, UserRoles, Customers, CustomerPreferences, CustomerGuests, Trips, Flights, Accommodations, ServiceCategories, Services, ServiceOptions, ServiceRequests, ServiceRequestHistory, Itineraries, ItineraryItems, Notifications, AuditLogs and SystemSettings.
 
+Phase 2 tables: Quotes, QuoteItems, QuoteHistory, Invoices, InvoiceItems, Payments, Refunds, Vendors, VendorServices, VendorAssignments, VendorAssignmentHistory, Drivers, Vehicles, Transfers, TransferStatusHistory, Conversations and ConversationParticipants.
+
 Supporting tables: AuthSessions, PasswordResetTokens, Messages and TypeORM's SchemaMigrations. Domain tables include CreatedAt, UpdatedAt, CreatedBy and UpdatedBy. IDs use uniqueidentifier, prices decimal(12,2), experience dates date, UTC timestamps datetime2, and text nvarchar.
 
 Unique indexes protect account emails, role/category names, user-role pairs, user/customer links, preferences, trip itineraries, request numbers, request-linked itinerary items and setting keys. Foreign keys protect the relational core. Query indexes cover customer/date trips, catalog order, request status/date, history, notifications, messages and audit chronology.
@@ -16,3 +18,9 @@ Request creation and status changes commit request/history/itinerary/notificatio
 Use a release login for DDL and a separate runtime login limited to this database's necessary SELECT/INSERT/UPDATE/DELETE operations. Never grant sysadmin to the API. After migrations, allow SELECT/INSERT and deny UPDATE/DELETE on append-only AuditLogs and ServiceRequestHistory to the runtime principal.
 
 Back up before release and verify restore access. Migrations run once per release, never on web startup. Define session/reset/message/log retention with business operations; the application does not silently purge history. Local setup grants db_owner only inside the two development/test databases, for migrations and tests. This is not the recommended production runtime privilege.
+
+## Transfer an existing installation
+
+Use the two existing TypeORM migrations and the root commands `npm run db:export`, `npm run db:transfer -- --snapshot <path>` and `npm run db:transfer:verify -- --snapshot <path>`. Keep DB_* pointing at the source; MIGRATION_DB_* selects the destination. Existing user IDs, compatible password hashes and role assignments are imported idempotently, without invoking the demo seed or creating a second administrator.
+
+See [SQL migration report and cutover runbook](../docs/sql-migration.md) for backup locations, all 39 table counts, validation evidence, conflict handling and current blockers. See [SmarterASP.NET environment checklist](../docs/smarterasp-environment.md) for exact build/runtime inputs. Private snapshots are ignored under .runtime/database-transfer and must not be deployed with the app.

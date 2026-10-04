@@ -12,6 +12,7 @@ export function validateConfig() {
   for (const key of ['JWT_SECRET','JWT_REFRESH_SECRET']) if (required(key).length < 48) throw new Error(`${key} must contain at least 48 characters`);
   if (required('JWT_SECRET') === required('JWT_REFRESH_SECRET')) throw new Error('JWT secrets must differ');
   if (process.env.NODE_ENV === 'production') {
+    if (process.env.DB_DRIVER === 'native') throw new Error('Production requires the TCP SQL Server driver. Remove DB_DRIVER=native.');
     if (!required('APP_URL').startsWith('https:') || process.env.COOKIE_SECURE !== 'true') throw new Error('Production requires HTTPS and secure cookies');
     if (process.env.DB_ENCRYPT !== 'true' || process.env.DB_TRUST_CERTIFICATE === 'true') throw new Error('Production requires verified SQL Server TLS');
     if (process.env.MAIL_MODE !== 'smtp') throw new Error('Production password recovery requires SMTP');

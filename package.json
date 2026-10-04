@@ -22,7 +22,10 @@
     "test:browser": "playwright test",
     "db:migrate": "ts-node --project tsconfig.server.json src/server/database/cli.ts migrate",
     "db:seed": "ts-node --project tsconfig.server.json src/server/database/cli.ts seed",
-    "admin:create": "ts-node --project tsconfig.server.json src/server/database/cli.ts admin"
+    "admin:create": "ts-node --project tsconfig.server.json src/server/database/cli.ts admin",
+    "db:export": "ts-node --project tsconfig.server.json src/server/database/transfer-cli.ts export",
+    "db:transfer": "ts-node --project tsconfig.server.json src/server/database/transfer-cli.ts transfer",
+    "db:transfer:verify": "ts-node --project tsconfig.server.json src/server/database/transfer-cli.ts verify"
   },
   "dependencies": {
     "next": "^16.1.0",
@@ -35,10 +38,10 @@
     "@nestjs/core": "^11.1.0",
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/platform-express": "^11.1.0",
-    "@nestjs/platform-ws": "^11.1.0",
+    "@nestjs/platform-ws": "11.2.6",
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/throttler": "^6.4.0",
-    "@nestjs/websockets": "^11.1.0",
+    "@nestjs/websockets": "11.2.6",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "cookie-parser": "^1.4.7",
