@@ -19,6 +19,8 @@ export class FinancialCore {
  }
  async requestState(id:string,target:Status,a:Actor,tx:Executor){
   let r=await this.db.get('ServiceRequests',id,tx);
+  // Financial approval never changes a marketplace booking's availability state.
+  if(await this.db.one('SELECT Id FROM ItineraryItems WHERE RequestId=@0 AND ManagedBooking=1',[id],tx))return r;
   const elevated={...a,permissions:[...a.permissions,'requests.write','operations.read']};
   const stages:Record<string,Status[]>={Quoted:['Under Review','Quoted'],'Client Approved':['Client Approved'],'Payment Required':['Payment Required'],Confirmed:['Confirmed'],'Under Review':['Under Review']};
   if(target==='Quoted'&&r.Status==='Under Review')stages.Quoted=['Quoted'];

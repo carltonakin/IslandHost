@@ -5,9 +5,9 @@ export type Actor = { id: string; email: string; displayName: string; roles: str
 export const ROLES = ['SuperAdmin','Management','OperationsManager','ConciergeAgent','Dispatcher','Finance','Vendor','Driver','Customer'] as const;
 export const PERMISSIONS: Record<string, string[]> = {
  SuperAdmin: ['*'],
- Management: ['operations.read','requests.write','customers.write','trips.write','catalog.write','itineraries.write','audit.read','quotes.read','quotes.write','invoices.read','invoices.write','payments.read','payments.write','refunds.write','financial.read','vendors.read','vendors.write','dispatch.read','dispatch.write','conversations.manage'],
- OperationsManager: ['operations.read','requests.write','customers.write','trips.write','itineraries.write','quotes.read','quotes.write','vendors.read','vendors.write','dispatch.read','dispatch.write','conversations.manage'],
- ConciergeAgent: ['operations.read','requests.write','customers.write','trips.write','itineraries.write','quotes.read','quotes.write','conversations.manage'],
+ Management: ['bookings.manage','operations.read','requests.write','customers.write','trips.write','catalog.write','itineraries.write','audit.read','quotes.read','quotes.write','invoices.read','invoices.write','payments.read','payments.write','refunds.write','financial.read','vendors.read','vendors.write','dispatch.read','dispatch.write','conversations.manage'],
+ OperationsManager: ['bookings.manage','operations.read','requests.write','customers.write','trips.write','itineraries.write','quotes.read','quotes.write','vendors.read','vendors.write','dispatch.read','dispatch.write','conversations.manage'],
+ ConciergeAgent: ['bookings.manage','operations.read','requests.write','customers.write','trips.write','itineraries.write','quotes.read','quotes.write','conversations.manage'],
  Dispatcher: ['operations.read','requests.write','itineraries.write','dispatch.read','dispatch.write','conversations.manage'],
  Finance: ['operations.read','quotes.read','quotes.write','invoices.read','invoices.write','payments.read','payments.write','refunds.write','financial.read','conversations.manage'], Vendor: ['vendor'], Driver: ['driver'], Customer: ['customer']
 };

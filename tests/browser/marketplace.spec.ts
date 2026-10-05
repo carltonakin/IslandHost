@@ -1,0 +1,34 @@
+import { test,expect,APIRequestContext } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+import { config } from 'dotenv';
+import { login,loginRequest,submitSignIn } from './login';
+config({path:'.env',quiet:true});
+const origin=process.env.APP_URL!;
+let admin:APIRequestContext;let serviceId:string;const marker=randomUUID().slice(0,8),name='Browser Jamaica discovery '+marker;
+test.beforeAll(async({playwright})=>{
+ admin=await playwright.request.newContext({baseURL:origin,extraHTTPHeaders:{Origin:origin}});
+ await loginRequest(admin);
+ const categories=(await (await admin.get('/api/service-categories?limit=100')).json()).data.items;
+ const response=await admin.post('/api/services',{data:{CategoryId:categories.find((c:{Name:string})=>c.Name==='Tours').Id,Name:name,ShortDescription:'A local browser verification listing.',Description:'A temporary listing used to verify the complete trip and payment workflow.',Destination:'Jamaica',Location:'Negril',Image:'/images/coast.svg',StartingPrice:99.99,PricingType:'Starting From',Published:true,Bookable:true,Active:true}});
+ expect(response.status()).toBe(201);serviceId=(await response.json()).data.Id;
+});
+test.afterAll(async()=>{if(serviceId)await admin.patch('/api/services/'+serviceId,{data:{Published:false,Active:false}});await admin?.dispose();});
+test('guest itinerary survives sign-in, staff confirms and verified payment produces an exact receipt',async({page,browser},info)=>{
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.goto('/explore');await expect(page.getByRole('heading',{level:1})).toContainText('Good days start');await page.getByLabel('Search marketplace').fill(marker);await expect(page.getByRole('heading',{name})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);await page.screenshot({path:'.runtime/marketplace-'+info.project.name+'.png',fullPage:true});
+ await page.getByRole('heading',{name}).click();await expect(page.getByRole('heading',{level:1,name})).toBeVisible();await page.getByRole('button',{name:'Add to My Trip',exact:true}).click();
+ let modal=page.getByRole('dialog');await modal.getByLabel('Notes',{exact:true}).fill('Keep this guest itinerary after sign-in');await modal.getByRole('button',{name:'Add to My Trip',exact:true}).click();await expect(page.getByText('Your trip is saved on this device.')).toBeVisible();await expect(page.getByRole('heading',{name})).toBeVisible();
+ await page.getByRole('button',{name:'Edit trip',exact:true}).click();modal=page.getByRole('dialog');await modal.getByLabel('Trip name').fill('Jamaica browser trip '+marker);await modal.getByRole('button',{name:'Save trip'}).click();await expect(modal).not.toBeVisible();await page.reload();await expect(page.getByText('Keep this guest itinerary after sign-in',{exact:true})).toBeVisible();
+ await page.getByRole('link',{name:'Sign in & keep my trip'}).click();await page.getByLabel('Email address',{exact:true}).fill(process.env.SEED_CUSTOMER_EMAIL!);await page.getByLabel('Password',{exact:true}).fill(process.env.SEED_PASSWORD!);const imported=page.waitForResponse(r=>r.url().endsWith('/api/trip-plans/import')&&r.request().method()==='POST',{timeout:90000});await submitSignIn(page);const importedResponse=await imported;expect(importedResponse.status()).toBe(201);const planId=(await importedResponse.json()).data.Id;
+ await expect(page.getByRole('heading',{name:'Jamaica browser trip '+marker})).toBeVisible();await expect(page.getByText('Keep this guest itinerary after sign-in',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Request confirmation',exact:true}).click();await expect(page.locator('.trip-item .booking-badge')).toHaveText('Awaiting confirmation');await expect(page.getByRole('button',{name:'Continue to invoice'})).toBeDisabled();
+ const staffContext=await browser.newContext({baseURL:origin,viewport:{width:1440,height:1000}});const staff=await staffContext.newPage();try{
+  await login(staff,true);await staff.goto('/bookings');const card=staff.locator('.booking-queue-card').filter({hasText:name});await card.getByRole('button',{name:'Review booking'}).click();const decision=staff.getByRole('dialog');await decision.getByLabel('Final inclusive total (USD)').fill('123.45');await decision.getByLabel('Confirmation reference').fill('BROWSER-'+marker);await decision.getByLabel('Confirmation conditions').fill('All taxes and fees included.');await decision.getByRole('button',{name:'Save booking decision'}).click();await expect(decision).not.toBeVisible();
+  await page.reload();await expect(page.locator('.trip-item .booking-badge')).toHaveText('Confirmed');await page.locator('.checkout-choice input').check();await expect(page.locator('.checkout-total')).toContainText('$123.45');expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);await page.screenshot({path:'.runtime/trip-builder-'+info.project.name+'.png',fullPage:true});await page.getByRole('button',{name:'Continue to invoice'}).click();await expect(page.getByRole('heading',{level:1})).toHaveText(/IHC-INV-/);const invoicePath=new URL(page.url()).pathname;await expect(page.locator('.invoice-totals')).toContainText('$123.45');
+  await staff.goto(invoicePath);await staff.getByRole('button',{name:'Record verified payment'}).click();const receipt=staff.getByRole('dialog');await receipt.getByLabel('Method',{exact:true}).selectOption('Bank Transfer');await receipt.getByLabel('Bank / terminal reference').fill('TEST-SETTLEMENT-'+randomUUID());await receipt.getByRole('button',{name:'Save changes'}).click();await expect(receipt).not.toBeVisible();await expect(staff.locator('.finance-document-heading .status')).toHaveText('Paid');
+  await page.reload();await expect(page.locator('.finance-document-heading .status')).toHaveText('Paid');await page.getByRole('link',{name:/IHC-PAY-/}).click();await expect(page.getByRole('heading',{name:'Payment receipt',exact:true})).toBeVisible();await expect(page.locator('.invoice-totals')).toContainText('$123.45');await page.screenshot({path:'.runtime/receipt-'+info.project.name+'.png',fullPage:true});
+  await page.goto('/my-trip?id='+planId);await expect(page.getByText('Payment: paid',{exact:false})).toBeVisible();await expect(page.locator('.checkout-choice')).toHaveCount(0);
+  await page.getByRole('button',{name:'Plan another trip'}).click();await expect(page.getByRole('dialog').getByLabel('Trip name')).toHaveValue('My Jamaica escape');await page.getByRole('button',{name:'Close dialog'}).click();
+ }finally{await staffContext.close();}
+ expect(errors).toEqual([]);
+});

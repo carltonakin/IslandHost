@@ -5,7 +5,7 @@ import { Row } from '../common/types';
 import { ListDto, pageResult } from '../common/dto';
 import { EventEmitter } from 'node:events';
 export type Executor = EntityManager | DataSource;
-const TABLES = new Set(["Users","Roles","UserRoles","Customers","CustomerPreferences","CustomerGuests","Trips","Flights","Accommodations","ServiceCategories","Services","ServiceOptions","ServiceRequests","ServiceRequestHistory","Itineraries","ItineraryItems","Notifications","AuditLogs","SystemSettings","AuthSessions","PasswordResetTokens","Messages","Quotes","QuoteItems","QuoteHistory","Invoices","InvoiceItems","Payments","Refunds","Vendors","VendorServices","VendorAssignments","VendorAssignmentHistory","Drivers","Vehicles","Transfers","TransferStatusHistory","Conversations","ConversationParticipants"]);
+const TABLES = new Set(["Users","Roles","UserRoles","Customers","CustomerPreferences","CustomerGuests","Trips","Flights","Accommodations","ServiceCategories","Services","ServiceOptions","ServiceRequests","ServiceRequestHistory","Itineraries","ItineraryItems","Notifications","AuditLogs","SystemSettings","AuthSessions","PasswordResetTokens","Messages","Quotes","QuoteItems","QuoteHistory","Invoices","InvoiceItems","Payments","Refunds","Vendors","VendorServices","VendorAssignments","VendorAssignmentHistory","Drivers","Vehicles","Transfers","TransferStatusHistory","Conversations","ConversationParticipants","BookingHistory","InvoiceBookings","PaymentAllocations"]);
 function identifier(name: string) { if (!/^[A-Za-z][A-Za-z0-9]*$/.test(name)) throw new Error('Invalid SQL identifier'); return `[${name}]`; }
 function table(name: string) { if (!TABLES.has(name)) throw new Error('Invalid table'); return identifier(name); }
 @Injectable()

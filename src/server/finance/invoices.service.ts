@@ -5,10 +5,11 @@ import { like } from '../common/dto';
 import { ActionDto,Phase2ListDto } from '../phase2/phase2.dto';
 import { Conditions,dateRange,financialOwner,notifyCustomer,requirePermission,version } from '../phase2/support';
 import { ConvertQuoteDto,InvoiceDto } from './finance.dto';
+import { BookingCheckoutService } from '../marketplace/checkout.service';
 import { FinancialCore } from './financial-core';
 @Injectable()
 export class InvoicesService {
- constructor(private db:Db,private core:FinancialCore){}
+ constructor(private db:Db,private core:FinancialCore,private checkout:BookingCheckoutService){}
  async list(q:Phase2ListDto,a:Actor){
   dateRange(q);const w=new Conditions();w.params.push(bahamasToday());
   const effective="CASE WHEN i.Status IN ('Issued','Partially Paid','Overdue') AND i.BalanceDue>0 AND i.DueDate<CAST(@0 AS date) THEN 'Overdue' ELSE i.Status END";
@@ -23,7 +24,8 @@ export class InvoicesService {
   const invoice=await this.db.get('Invoices',id);financialOwner(a,invoice.CustomerId,'invoices.read');
   if(invoice.Status==='Draft'&&!allowed(a,'invoices.read'))throw new ForbiddenException('This invoice has not been issued.');
   const [items,payments,customer,trip]=await Promise.all([this.db.query('SELECT * FROM InvoiceItems WHERE InvoiceId=@0 ORDER BY DisplayOrder',[id]),this.db.query('SELECT TOP(100) Id,PaymentNumber,Amount,RefundedAmount,Status,Method,ReceivedDate,ProviderReference FROM Payments WHERE InvoiceId=@0 ORDER BY CreatedAt DESC',[id]),this.db.get('Customers',invoice.CustomerId),this.db.get('Trips',invoice.TripId)]);
-  return {...invoice,Status:['Issued','Partially Paid','Overdue'].includes(invoice.Status)&&Number(invoice.BalanceDue)>0&&dateOnly(invoice.DueDate)<bahamasToday()?'Overdue':invoice.Status,Items:items,Payments:payments,CustomerName:customer.DisplayName,CustomerEmail:customer.Email,TripName:trip.Name};
+  const paymentSettings=await this.db.one("SELECT Value FROM SystemSettings WHERE SettingKey='PaymentInstructions'");
+  return {...invoice,PaymentInstructions:paymentSettings?.Value,Status:['Issued','Partially Paid','Overdue'].includes(invoice.Status)&&Number(invoice.BalanceDue)>0&&dateOnly(invoice.DueDate)<bahamasToday()?'Overdue':invoice.Status,Items:items,Payments:payments,CustomerName:customer.DisplayName,CustomerEmail:customer.Email,TripName:trip.Name};
  }
  create(dto:InvoiceDto,a:Actor){
   requirePermission(a,'invoices.write');this.core.assertDate(dto.DueDate,'Due date');
@@ -50,12 +52,14 @@ export class InvoicesService {
  action(id:string,dto:ActionDto,a:Actor){
   requirePermission(a,'invoices.write');
   return this.db.transaction(async tx=>{
+   await this.checkout.lockInvoice(id,tx);
    const i=await this.db.one('SELECT * FROM Invoices WITH(UPDLOCK,ROWLOCK) WHERE Id=@0',[id],tx);if(!i)throw new NotFoundException();version(i,dto.Version);
    if(dto.Status==='Issued'){if(i.Status!=='Draft')throw new BadRequestException('Only a draft can be issued.');}
    else if(dto.Status==='Cancelled'){if(!['Draft','Issued','Overdue'].includes(i.Status)||Number(i.AmountPaid)+Number(i.RefundedAmount)>0)throw new BadRequestException('Paid invoices must be refunded rather than cancelled.');}
    else throw new BadRequestException('This invoice transition is not available.');
    const result=await this.db.update('Invoices',id,{Status:dto.Status,IssuedDate:dto.Status==='Issued'?bahamasToday():i.IssuedDate,Version:i.Version+1},a.id,tx);
    if(dto.Status==='Issued'){if(i.RequestId)await this.core.requestState(i.RequestId,'Payment Required',a,tx);await notifyCustomer(this.db,tx,i.CustomerId,'Invoice issued',i.InvoiceNumber+' is ready.','/invoices/'+id);}
+   if(dto.Status==='Cancelled')await this.checkout.releaseInvoice(id,a,tx);
    await this.db.audit(a.id,'Invoice '+dto.Status.toLowerCase(),'Invoices',id,{notes:dto.Notes},tx);return result;
   });
  }

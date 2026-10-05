@@ -26,7 +26,7 @@ export function configureApp(app:INestApplication){
  app.useGlobalFilters(new Errors());app.useGlobalInterceptors(new Envelope());
  if(process.env.SWAGGER_ENABLED==='true'&&process.env.NODE_ENV!=='production'){
   registerRequestSchemas();
-  const doc=SwaggerModule.createDocument(app,new DocumentBuilder().setTitle('IslandHost One').setDescription('Phase 1 concierge REST API. Same-origin HttpOnly cookie authentication; write requests require APP_URL Origin.').setVersion('1.0').addCookieAuth('ih_access',{type:'apiKey',in:'cookie'},'ih_access').addSecurityRequirements('ih_access').build());
+  const doc=SwaggerModule.createDocument(app,new DocumentBuilder().setTitle('IslandHost One').setDescription('Concierge and marketplace REST API. Same-origin HttpOnly cookie authentication; write requests require APP_URL Origin.').setVersion('1.0').addCookieAuth('ih_access',{type:'apiKey',in:'cookie'},'ih_access').addSecurityRequirements('ih_access').build());
   SwaggerModule.setup('api/docs',app,doc);
  }
 }

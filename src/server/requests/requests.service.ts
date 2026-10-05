@@ -3,6 +3,7 @@ import { Db,Executor } from '../database/db';
 import { Actor,Row,allowed,canTransition,dateOnly,isStaff } from '../common/types';
 import { ListDto,like } from '../common/dto';
 import { ownCustomer } from '../auth/access';
+import { lock } from '../phase2/support';
 import { RequestDto,StatusDto } from './requests.dto';
 const from='ServiceRequests r JOIN Customers c ON c.Id=r.CustomerId JOIN Services s ON s.Id=r.ServiceId LEFT JOIN Users u ON u.Id=r.AssignedStaffId';
 const select='r.*,c.DisplayName CustomerName,s.Name ServiceName,s.CategoryId,u.DisplayName AssignedStaffName';
@@ -46,8 +47,11 @@ export class RequestsService {
  }
  async status(id:string,dto:StatusDto,a:Actor,executor?:Executor) {
   const change=async(tx:Executor)=>{
+   const original=await this.db.get('ServiceRequests',id,tx);const plan=await this.db.one('SELECT Id FROM Itineraries WHERE TripId=@0',[original.TripId],tx);if(plan)await lock(this.db,tx,'itinerary:'+plan.Id);
    const r=await this.db.one('SELECT * FROM ServiceRequests WITH (UPDLOCK,ROWLOCK) WHERE Id=@0',[id],tx);
    if(!r)throw new BadRequestException('This request is not available.');ownCustomer(a,r.CustomerId);
+   const managed=await this.db.one('SELECT Id FROM ItineraryItems WHERE RequestId=@0 AND ManagedBooking=1',[id],tx);
+   if(managed)throw new BadRequestException('Update this request through its booking confirmation workflow.');
    if(!allowed(a,'requests.write')) {
     if(isStaff(a)||dto.AssignedStaffId!==undefined||dto.PreferredDate||dto.PreferredTime)throw new ForbiddenException();
     if(!((r.Status==='Quoted'&&dto.Status==='Client Approved')||(['Requested','Under Review','Quoted'].includes(r.Status)&&dto.Status==='Cancelled')))throw new ForbiddenException('Your concierge can help with this change.');
@@ -71,7 +75,7 @@ export class RequestsService {
     if(!itinerary)throw new Error('Trip itinerary is missing');
     const service=await this.db.get('Services',r.ServiceId,tx);
     const existing=await this.db.one('SELECT Id FROM ItineraryItems WHERE RequestId=@0',[id],tx);
-    const item={ItineraryId:itinerary.Id,RequestId:id,EventDate:dateOnly(updated.PreferredDate),EventTime:updated.PreferredTime,Activity:service.Name,Notes:r.SpecialRequirements,Active:true};
+    const item={ItineraryId:itinerary.Id,RequestId:id,ServiceId:r.ServiceId,OptionId:r.OptionId,PartySize:r.Guests,EventDate:dateOnly(updated.PreferredDate),EventTime:updated.PreferredTime,Activity:service.Name,Notes:r.SpecialRequirements,Active:true};
     if(existing)await this.db.update('ItineraryItems',existing.Id,item,a.id,tx);else await this.db.insert('ItineraryItems',item,a.id,tx);
    }
    if(['Cancelled','Unavailable','Refunded','Rescheduled'].includes(dto.Status))await this.db.query('UPDATE ItineraryItems SET Active=0,UpdatedAt=SYSUTCDATETIME(),UpdatedBy=@1 WHERE RequestId=@0',[id,a.id],tx);

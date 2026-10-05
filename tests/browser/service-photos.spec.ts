@@ -1,0 +1,38 @@
+import { test,expect,APIRequestContext,Locator } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
+import sharp from 'sharp';
+import { config } from 'dotenv';
+import { login,loginRequest } from './login';
+config({path:'.env',quiet:true});
+const origin=process.env.APP_URL!;
+const loaded=async(image:Locator)=>{await expect(image).toBeVisible();await expect.poll(()=>image.evaluate(node=>(node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);};
+let admin:APIRequestContext,serviceId:string,categoryId:string;
+test.beforeAll(async({playwright})=>{
+ admin=await playwright.request.newContext({baseURL:origin,extraHTTPHeaders:{Origin:origin}});
+ await loginRequest(admin);
+ const categories=(await (await admin.get('/api/service-categories?limit=100')).json()).data.items;categoryId=categories.find((c:{Name:string})=>c.Name==='Tours').Id;
+});
+test.afterAll(async()=>{if(serviceId)await admin.patch('/api/services/'+serviceId,{data:{Published:false,Active:false}});await admin?.dispose();});
+test('create, publish, replace, select and remove service photos through the editor',async({page},info)=>{
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));const name='Photo browser '+randomUUID().slice(0,8);
+ const png=await sharp({create:{width:640,height:480,channels:3,background:'#0E7A86'}}).png().toBuffer();const jpg=await sharp({create:{width:640,height:480,channels:3,background:'#F1C232'}}).jpeg().toBuffer();
+ await login(page,true);
+ await page.goto('/services');await page.getByRole('button',{name:'New experience'}).click();let modal=page.getByRole('dialog');
+ await modal.getByLabel('Experience name',{exact:true}).fill(name);await modal.getByLabel('Category',{exact:true}).selectOption(categoryId);await modal.getByLabel('A short introduction',{exact:true}).fill('Service photo browser verification.');await modal.getByLabel('The full experience',{exact:true}).fill('A temporary listing used to verify uploading and displaying service photos.');await modal.getByLabel('Starting price (USD)').fill('25');await modal.getByLabel('Published in marketplace').check();
+ await modal.getByLabel('Upload service photos',{exact:true}).setInputFiles({name:'invalid.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg/>')});await expect(modal.getByRole('alert')).toContainText('Choose JPG, PNG or WebP');await expect(modal.getByRole('button',{name:'Create experience'})).toBeEnabled();
+ await modal.getByLabel('Upload service photos',{exact:true}).setInputFiles([{name:'destination.png',mimeType:'image/png',buffer:png},{name:'destination.jpg',mimeType:'image/jpeg',buffer:jpg}]);await expect(modal.locator('.service-photo-card')).toHaveCount(2);await expect(modal.getByRole('button',{name:'Create experience'})).toBeEnabled();await loaded(modal.getByAltText('Service photo 1',{exact:true}));await loaded(modal.getByAltText('Service photo 2',{exact:true}));
+ expect(await modal.evaluate(node=>node.scrollWidth<=node.clientWidth)).toBeTruthy();await modal.locator('.service-photo-editor').screenshot({path:'.runtime/service-photos-'+info.project.name+'.png'});
+ const created=page.waitForResponse(r=>r.url().endsWith('/api/services')&&r.request().method()==='POST');await modal.getByRole('button',{name:'Create experience'}).click();const response=await created;expect(response.status()).toBe(201);const service=(await response.json()).data;serviceId=service.Id;const main=service.Image,gallery=JSON.parse(service.Images);expect(main).toMatch(/^\/api\/service-photos\//);expect(gallery).toHaveLength(1);await expect(modal).not.toBeVisible();
+ await page.goto('/services/'+serviceId);await loaded(page.getByAltText(name,{exact:true}));
+ await page.goto('/explore');await page.getByLabel('Search marketplace').fill(name);await loaded(page.getByAltText(name,{exact:true}));await page.getByRole('heading',{name,exact:true}).click();await loaded(page.getByAltText(name,{exact:true}));await loaded(page.getByAltText(name+' view 1',{exact:true}));
+ await page.goto('/services/'+serviceId);await page.getByRole('button',{name:'Edit experience'}).click();modal=page.getByRole('dialog');await expect(modal.locator('.service-photo-card')).toHaveCount(2);
+ await modal.getByLabel('Replace photo 1',{exact:true}).setInputFiles({name:'replacement.png',mimeType:'image/png',buffer:png});await expect(modal.getByRole('button',{name:'Save experience'})).toBeEnabled();await expect(modal.getByAltText('Service photo 1',{exact:true})).not.toHaveAttribute('src',main);await loaded(modal.getByAltText('Service photo 1',{exact:true}));
+ await modal.getByRole('button',{name:'Set as main photo'}).click();await expect(modal.getByAltText('Service photo 1',{exact:true})).toHaveAttribute('src',gallery[0]);await modal.getByRole('button',{name:'Remove photo 2',exact:true}).click();await modal.getByRole('button',{name:'Save experience'}).click();await expect(modal).not.toBeVisible();
+ let saved=(await (await admin.get('/api/services/'+serviceId)).json()).data;expect(saved.Image).toBe(gallery[0]);expect(JSON.parse(saved.Images)).toEqual([]);
+ await page.reload();await page.getByRole('button',{name:'Edit experience'}).click();modal=page.getByRole('dialog');await expect(modal.locator('.service-photo-card')).toHaveCount(1);await modal.getByRole('button',{name:'Remove photo 1',exact:true}).click();await modal.getByRole('button',{name:'Close dialog'}).click();saved=(await (await admin.get('/api/services/'+serviceId)).json()).data;expect(saved.Image).toBe(gallery[0]);
+ await page.getByRole('button',{name:'Edit experience'}).click();modal=page.getByRole('dialog');await modal.getByRole('button',{name:'Remove photo 1',exact:true}).click();await modal.getByRole('button',{name:'Save experience'}).click();await expect(modal).not.toBeVisible();saved=(await (await admin.get('/api/services/'+serviceId)).json()).data;expect(saved.Image).toBeNull();expect(JSON.parse(saved.Images)).toEqual([]);
+ await page.getByRole('button',{name:'Edit experience'}).click();modal=page.getByRole('dialog');await modal.getByText('Use an existing image address',{exact:true}).click();await modal.getByLabel('Existing image address').fill(gallery[0]);await modal.getByRole('button',{name:'Add image',exact:true}).click();await modal.getByRole('button',{name:'Save experience'}).click();await expect(modal).not.toBeVisible();
+ await page.goto('/explore/'+serviceId);await expect(page.getByAltText(name,{exact:true})).toHaveAttribute('src',gallery[0]);await loaded(page.getByAltText(name,{exact:true}));await expect(page.locator('.listing-gallery img')).toHaveCount(0);expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+ expect((await admin.get(main)).status()).toBe(200);await writeFile('.runtime/service-photo-restart-'+info.project.name+'.json',JSON.stringify({Url:gallery[0]}));expect(errors).toEqual([]);
+});

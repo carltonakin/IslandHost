@@ -1,13 +1,7 @@
-import { test,expect,Page } from '@playwright/test';
+import { test,expect } from '@playwright/test';
 import { config } from 'dotenv';
+import { login } from './login';
 config({path:'.env',quiet:true});
-async function login(page:Page,staff=false){
- await page.goto('/login');
- await page.getByLabel('Email address',{exact:true}).fill((staff?process.env.SEED_ADMIN_EMAIL:process.env.SEED_CUSTOMER_EMAIL)!);
- await page.getByLabel('Password',{exact:true}).fill(process.env.SEED_PASSWORD!);
- await page.getByRole('button',{name:'Step into your Bahamas'}).click();
- await expect(page.getByRole('heading',{level:1})).toHaveText(staff?'A beautiful day to make it effortless.':/Welcome back/,{timeout:30000});
-}
 test('customer overview, catalog, preferences and itinerary use the live API',async({page},info)=>{
  const pageErrors:string[]=[];page.on('pageerror',e=>pageErrors.push(e.message));
  await login(page);

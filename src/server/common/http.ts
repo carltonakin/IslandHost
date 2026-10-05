@@ -1,4 +1,4 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger, Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { StreamableFile, ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger, Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Response } from 'express';
 import { map } from 'rxjs';
 const fallback = "We couldn't complete that request. Please try again or contact your concierge if the problem continues.";
@@ -22,6 +22,6 @@ export class Errors implements ExceptionFilter {
 }
 @Injectable()
 export class Envelope implements NestInterceptor {
- intercept(_context: ExecutionContext, next: CallHandler) { return next.handle().pipe(map(data=>({data}))); }
+ intercept(_context: ExecutionContext, next: CallHandler) { return next.handle().pipe(map(data=>data instanceof StreamableFile?data:({data}))); }
 }
 

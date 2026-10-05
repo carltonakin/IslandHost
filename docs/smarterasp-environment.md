@@ -42,6 +42,7 @@ Examples in angle brackets are placeholders, not literal values. "Runtime" inclu
 | SMTP_PASSWORD | REQUIRED when SMTP_USER is set; secret | RUNTIME | SMTP authentication | `<smtp-password>` | Hosted secret environment only |
 | TRUST_PROXY | OPTIONAL; default false | RUNTIME | Trust exactly one proxy hop when true | `false` | Hosted environment; change only after verifying the actual proxy chain |
 | SWAGGER_ENABLED | OPTIONAL; production always disables it | RUNTIME | Development API documentation | `false` | Supplied web.config |
+| SERVICE_UPLOAD_DIR | OPTIONAL | RUNTIME | Persistent service photos; app needs read/write access | `<persistent-data-root>/service-photos` | Hosted environment; default is uploads/service-photos under the app root; back up and preserve this folder |
 | SERVICE_IMAGE_HOSTS | OPTIONAL | BUILD_AND_RUNTIME | Comma-separated allowed HTTPS image hosts | `images.example.com` | Build AND hosted environment; omit for local assets |
 | PAYMENT_PROVIDER | OPTIONAL; default manual | RUNTIME | Record externally settled payments/refunds | `manual` | Hosted environment; manual is the only implemented adapter |
 | REALTIME_ENABLED | OPTIONAL; default false | RUNTIME | Authenticated WebSocket refresh events | `false` | Hosted environment; leave disabled until IIS/WebSocket proxy path is verified |

@@ -1,0 +1,10 @@
+import { effectiveStatus,ineligibleReason,materialChange } from '../../src/server/marketplace/booking-rules';
+const confirmed={Active:true,BookingStatus:'CONFIRMED',PaymentStatus:'UNPAID',ConfirmedPrice:'101.25',ConfirmationReference:'TEST'};
+describe('confirmed booking payment boundary',()=>{
+ it.each(['PLANNED','PENDING_CONFIRMATION','REJECTED','EXPIRED','CHANGE_REQUESTED','RECONFIRMING','CANCELLED','COMPLETED'])('rejects %s',BookingStatus=>expect(ineligibleReason({...confirmed,BookingStatus})).toBeTruthy());
+ it('allows only valid unpaid confirmations',()=>{expect(ineligibleReason(confirmed)).toBeNull();for(const change of [{Active:false},{ConfirmedPrice:0},{ConfirmationReference:null},{PaymentStatus:'PAID'},{PaymentStatus:'REFUNDED'},{PaymentStatus:'PARTIALLY_REFUNDED'}])expect(ineligibleReason({...confirmed,...change})).toBeTruthy();});
+ it('expires at the exact deadline',()=>{const item={...confirmed,ConfirmationExpiresAt:'2026-10-05T12:00:00Z'};const now=new Date(item.ConfirmationExpiresAt);expect(effectiveStatus(item,now)).toBe('EXPIRED');expect(ineligibleReason(item,now)).toBeTruthy();});
+ it('keeps a settled booking confirmed after the payment deadline',()=>{expect(effectiveStatus({...confirmed,PaymentStatus:'PAID',ConfirmationExpiresAt:'2020-01-01T00:00:00Z'})).toBe('CONFIRMED');});
+ it('reserves an item for its own invoice only',()=>{const item={...confirmed,CheckoutInvoiceId:'ABC'};expect(ineligibleReason(item)).toBeTruthy();expect(ineligibleReason(item,new Date(),'abc')).toBeNull();expect(ineligibleReason(item,new Date(),'other')).toBeTruthy();});
+ it('invalidates date, time, quantity, party, option and transport changes but preserves notes',()=>{const before={EventDate:'2027-01-01T00:00:00Z',EventTime:'10:00',Quantity:1,PartySize:2,OptionId:'one',Pickup:'Hotel',Dropoff:'Beach'};expect(materialChange(before,{EventDate:'2027-01-01',Notes:'Please call'})).toBe(false);for(const field of Object.keys(before))expect(materialChange(before,{[field]:field==='EventDate'?'2027-01-02':'different'})).toBe(true);});
+});

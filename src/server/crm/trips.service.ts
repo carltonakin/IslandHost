@@ -3,6 +3,7 @@ import { Db } from '../database/db';
 import { Actor,allowed,dateOnly,isStaff } from '../common/types';
 import { ListDto,like } from '../common/dto';
 import { ownCustomer } from '../auth/access';
+import { lock } from '../phase2/support';
 import { TripDto,TripPatchDto } from './crm.dto';
 @Injectable()
 export class TripsService {
@@ -31,6 +32,9 @@ export class TripsService {
   if(arrival>departure)throw new BadRequestException('Departure must be on or after arrival.');
   return this.db.transaction(async tx=>{
    if(id) {
+    const plan=await this.db.one('SELECT Id FROM Itineraries WHERE TripId=@0',[id],tx);if(plan)await lock(this.db,tx,'itinerary:'+plan.Id);
+    const outside=await this.db.one('SELECT TOP(1) i.Id FROM ItineraryItems i JOIN Itineraries it ON it.Id=i.ItineraryId WHERE it.TripId=@0 AND i.Active=1 AND (i.EventDate<@1 OR i.EventDate>@2)',[id,arrival,departure],tx);
+    if(outside)throw new BadRequestException('Update itinerary items outside the new trip dates first.');
     await this.db.one('SELECT Id FROM Trips WITH (UPDLOCK,ROWLOCK) WHERE Id=@0',[id],tx);
     const conflict=await this.db.one("SELECT TOP(1) Id FROM ServiceRequests WHERE TripId=@0 AND Status NOT IN ('Cancelled','Unavailable','Refunded') AND (PreferredDate<@1 OR PreferredDate>@2)",[id,arrival,departure],tx);
     if(conflict)throw new BadRequestException('Update or cancel requests outside the new trip dates first.');

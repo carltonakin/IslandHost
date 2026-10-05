@@ -15,6 +15,16 @@ export class OptionDto {
  @IsOptional() @IsBoolean() Active?:boolean;
 }
 export class ServiceDto {
+ @IsOptional() @IsString() @Length(2,100) Destination?:string;
+ @IsOptional() @IsString() @MaxLength(300) Location?:string;
+ @IsOptional() @IsString() @MaxLength(12000) Images?:string;
+ @IsOptional() @IsString() @MaxLength(2000) Amenities?:string;
+ @IsOptional() @IsUUID('loose') VendorId?:string;
+ @IsOptional() @IsString() @MaxLength(2000) BookingRequirements?:string;
+ @IsOptional() @IsString() @MaxLength(2000) CancellationPolicy?:string;
+ @IsOptional() @IsString() @MaxLength(1000) AvailabilityNotes?:string;
+ @IsOptional() @IsBoolean() Published?:boolean;
+ @IsOptional() @IsBoolean() Bookable?:boolean;
  @IsUUID('loose') CategoryId!:string;
  @IsString() @Length(2,160) Name!:string;
  @IsString() @Length(5,300) ShortDescription!:string;

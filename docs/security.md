@@ -11,15 +11,22 @@ Reset tokens are random, hashed, single-use and expire in 30 minutes. Forgot pas
 | Role | Permissions |
 | --- | --- |
 | SuperAdmin | All; accounts, roles and settings |
-| Management | Operations, requests, customer/trip/itinerary/catalog writes, audit read |
-| OperationsManager / ConciergeAgent | Operations, requests, customer/trip/itinerary writes |
+| Management | Operations, booking confirmation, customer/trip/itinerary/catalog writes, finance, supplier/dispatch management and audit read |
+| OperationsManager / ConciergeAgent | Operations, booking confirmation, requests, customer/trip/itinerary writes, quotes and existing role-specific supplier access |
 | Dispatcher | Operations read, request/itinerary writes |
-| Finance | Operations read only |
+| Finance | Operations read; quotes/invoices/payments/refunds and financial reporting; no booking confirmation |
 | Customer | Owned records and customer actions |
-| Vendor / Driver | No operational access; portals deferred |
+| Vendor | Confirmation queue and history limited to bookings assigned to an active linked Vendor |
+| Driver | Existing driver/dispatch APIs; dedicated portal remains outside this change |
 
-Roles are centrally defined. Users cannot deactivate themselves or remove their own administrative access. Auth material is never stored in localStorage; only navigation preference is persisted there.
+Roles are centrally defined. Users cannot deactivate themselves or remove their own administrative access. Auth material is never stored in localStorage; navigation preferences, a customer-selected itinerary ID and unsent guest planning inputs are persisted there. No guest-local price or status is trusted. Server import derives customer ownership from the session; replay across accounts is rejected.
 
 Queries are parameterized and bounded. API errors are sanitized. Login/reset routes have tighter rate limits. The throttler is in-process: use a single API worker with a trusted upstream rate limiter, or add shared SQL-backed throttling before horizontally scaling. TRUST_PROXY must reflect the real proxy topology.
 
 Local acceptance does not establish production security. Verify HTTPS, production cookies, SMTP, permissions, backups, host routing and operational monitoring in staging.
+
+## Service photos
+
+Uploads require catalog.write (SuperAdmin/Management), cookie authentication and a matching Origin. The multipart body accepts one file, at most 5 MiB; MIME, file signature and decoded image data are checked. SVG and animated images are rejected. A 20-megapixel decode limit and 2000-pixel output bounds constrain processing; re-encoding strips embedded metadata. Uploads are rate-limited to 30/minute per the existing throttler.
+
+Stored filenames are random UUIDs with a fixed .webp extension; client filenames are never used as paths. The public read endpoint accepts only those names and serves image/webp with nosniff and immutable caching. Uploaded photos are public catalog assets, including previews before publication. Do not use this feature for private customer documents. Upload audit records contain actor, generated ID and dimensions/size only. Storage must be persistent and writable by the application identity. Removing or replacing a listing reference does not delete the old file; there is no automated storage cleanup. See [photo storage and backups](service-photo-uploads.md).

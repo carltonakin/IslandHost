@@ -11,9 +11,11 @@ import { Loading,ErrorState } from './ui';
 import { Brand } from './brand';
 type NavItem={label:string;href:string;icon:LucideIcon;permission?:string};
 function sections(a:Actor):{title:string;items:NavItem[]}[]{
+ if(can(a,'vendor')&&!can(a,'operations.read'))return [{title:'SUPPLIER WORKSPACE',items:[{label:'Booking confirmations',href:'/bookings',icon:ClipboardList},{label:'Profile',href:'/profile',icon:UserRound}]}];
  if(can(a,'operations.read'))return [
   {title:'WORKSPACE',items:[{label:'Command Center',href:'/',icon:LayoutDashboard}]},
   {title:'OPERATIONS',items:[{label:'Service Requests',href:'/requests',icon:ClipboardList},{label:'Operations Board',href:'/operations',icon:Layers},{label:'Trips',href:'/trips',icon:Compass},{label:'Itineraries',href:'/itinerary',icon:CalendarDays}]},
+  {title:'BOOKINGS & BILLING',items:[{label:'Booking confirmations',href:'/bookings',icon:ClipboardList,permission:'bookings.manage'},{label:'Quotes',href:'/quotes',icon:ClipboardList,permission:'quotes.read'},{label:'Invoices',href:'/invoices',icon:ClipboardList,permission:'invoices.read'},{label:'Payments',href:'/payments',icon:ClipboardList,permission:'payments.read'},{label:'Refunds',href:'/refunds',icon:History,permission:'payments.read'},{label:'Suppliers',href:'/vendors',icon:UsersRound,permission:'vendors.read'}]},
   {title:'RELATIONSHIPS',items:[{label:'Customers',href:'/customers',icon:UsersRound},{label:'Messages',href:'/messages',icon:MessageCircle}]},
   {title:'EXPERIENCES',items:[{label:'Services',href:'/services',icon:Waves},{label:'Categories',href:'/categories',icon:Layers,permission:'catalog.write'}]},
   {title:'SYSTEM',items:[{label:'Users',href:'/users',icon:UsersRound,permission:'users.manage'},{label:'Roles',href:'/roles',icon:ShieldCheck,permission:'users.manage'},{label:'Settings',href:'/settings',icon:Settings,permission:'settings.manage'},{label:'Audit Log',href:'/audit-log',icon:History,permission:'audit.read'}]}
@@ -22,6 +24,7 @@ function sections(a:Actor):{title:string;items:NavItem[]}[]{
   {title:'YOUR ISLAND',items:[{label:'Overview',href:'/',icon:LayoutDashboard}]},
   {title:'MY EXPERIENCE',items:[{label:'My Trip',href:'/trips',icon:Compass},{label:'Services',href:'/services',icon:Waves},{label:'Itinerary',href:'/itinerary',icon:CalendarDays}]},
   {title:'CONCIERGE',items:[{label:'Requests',href:'/requests',icon:ClipboardList},{label:'Messages',href:'/messages',icon:MessageCircle},{label:'Notifications',href:'/notifications',icon:Bell}]},
+  {title:'MY BOOKINGS',items:[{label:'Explore Jamaica',href:'/explore',icon:Compass},{label:'Trip builder',href:'/my-trip',icon:CalendarDays},{label:'My quotes',href:'/quotes',icon:ClipboardList},{label:'My invoices',href:'/invoices',icon:ClipboardList},{label:'My payments',href:'/payments',icon:ClipboardList}]},
   {title:'ACCOUNT',items:[{label:'Profile',href:'/profile',icon:UserRound},{label:'Preferences',href:'/preferences',icon:SlidersHorizontal}]}
  ];
 }
@@ -39,7 +42,7 @@ export function Shell({children}:{children:React.ReactNode}){
  useEffect(()=>{setMobile(false);setMenu(false);},[path]);
  const unread=useQuery({queryKey:['unread'],queryFn:()=>api<{Count:number}>('/notifications/unread'),enabled:!!a,refetchInterval:60000});
  if(auth.isPending||!a)return <div className="auth-loading"><Brand/><Loading/></div>;
- if(!can(a,'customer')&&!can(a,'operations.read'))return <div className="auth-loading"><Brand/><h1>Your workspace is being prepared</h1><p>Your account is active. Vendor and driver portals will be available in a later phase.</p><button className="button" onClick={async()=>{await write('/auth/logout',{});client.clear();router.push('/login');}}>Sign out</button></div>;
+ if(!can(a,'customer')&&!can(a,'operations.read')&&!can(a,'vendor'))return <div className="auth-loading"><Brand/><h1>Your workspace is being prepared</h1><p>Your account is active. Vendor and driver portals will be available in a later phase.</p><button className="button" onClick={async()=>{await write('/auth/logout',{});client.clear();router.push('/login');}}>Sign out</button></div>;
  const nav=sections(a);const current=nav.flatMap(s=>s.items).find(i=>i.href==='/'?path==='/':path.startsWith(i.href))?.label||({profile:'Profile',preferences:'Preferences','change-password':'Change password',notifications:'Notifications'}[path.slice(1)]||'Your experience');
  return <div className={'app-shell '+(collapsed?'nav-collapsed ':'')+(mobile?'nav-open':'')}>
  {mobile&&<button className="drawer-overlay" aria-label="Close navigation" onClick={()=>setMobile(false)}/>}

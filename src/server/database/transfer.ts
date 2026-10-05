@@ -21,7 +21,7 @@ const types=new Set(['uniqueidentifier','nvarchar','varchar','nchar','char','tex
 const binary=new Set(['binary','varbinary','image']);
 
 export async function expectedTables(){
- const files=['001_initial.sql','002_phase2.sql'];const names:string[]=[];
+ const files=['001_initial.sql','002_phase2.sql','003_marketplace.sql'];const names:string[]=[];
  for(const file of files){const sql=await readFile(resolve(__dirname,'../../../database/migrations',file),'utf8');for(const match of sql.matchAll(/CREATE TABLE dbo\.([A-Za-z0-9_]+)/g))names.push(match[1]);}
  return names.sort();
 }

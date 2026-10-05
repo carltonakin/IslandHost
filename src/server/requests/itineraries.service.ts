@@ -3,6 +3,7 @@ import { Db } from '../database/db';
 import { Actor,dateOnly,isStaff } from '../common/types';
 import { ListDto } from '../common/dto';
 import { ownCustomer } from '../auth/access';
+import { lock } from '../phase2/support';
 import { ItineraryDto } from './requests.dto';
 @Injectable()
 export class ItinerariesService {
@@ -17,6 +18,7 @@ export class ItinerariesService {
  }
  async create(dto:ItineraryDto,a:Actor) {
   return this.db.transaction(async tx=>{
+   const parent=await this.db.one('SELECT Id FROM Itineraries WHERE TripId=@0',[dto.TripId],tx);if(parent)await lock(this.db,tx,'itinerary:'+parent.Id);
    const trip=await this.db.get('Trips',dto.TripId,tx);ownCustomer(a,trip.CustomerId);
    if(dto.EventDate<dateOnly(trip.ArrivalDate)||dto.EventDate>dateOnly(trip.DepartureDate))throw new BadRequestException('Choose a date within this trip.');
    const itinerary=await this.db.one('SELECT Id FROM Itineraries WHERE TripId=@0',[dto.TripId],tx);

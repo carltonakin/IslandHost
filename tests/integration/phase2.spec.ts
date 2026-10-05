@@ -50,6 +50,12 @@ describe('Phase 2 persistence and permissions against real SQL Server',()=>{
   await patch(admin,'/invoices/'+invoice.Id+'/status',{Status:'Issued',Version:1}).expect(200);
   const paymentInput={InvoiceId:invoice.Id,Amount:'225.27',Method:'Cash',ProviderReference:'payment-'+run,IdempotencyKey:'payment-'+randomUUID(),ReceivedDate:bahamasToday()};
   await post(member,'/payments',paymentInput).expect(403);
+  await post(admin,'/payments',paymentInput).expect(400);
+  const before=(await admin.get('/api/service-requests/'+requestId)).body.data;
+  await patch(admin,'/service-requests/'+requestId+'/status',{Status:'Confirmed',Version:before.Version}).expect(200);
+  const booking=await db.one('SELECT * FROM ItineraryItems WHERE RequestId=@0',[requestId]);
+  const pending=(await patch(admin,'/bookings/'+booking!.Id+'/status',{Status:'PENDING_CONFIRMATION',Version:booking!.Version}).expect(200)).body.data;
+  await patch(admin,'/bookings/'+booking!.Id+'/status',{Status:'CONFIRMED',Version:pending.Version,ConfirmedPrice:'225.27',ConfirmationReference:'phase2-'+run}).expect(200);
   const payment=(await post(admin,'/payments',paymentInput).expect(201)).body.data;
   expect((await post(admin,'/payments',paymentInput).expect(201)).body.data.Id).toBe(payment.Id);
   expect((await admin.get('/api/service-requests/'+requestId).expect(200)).body.data.Status).toBe('Confirmed');

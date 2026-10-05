@@ -1,12 +1,12 @@
 # IslandHost One
-**Your Bahamas. One Seamless Experience.**
+**Your islands. One seamless experience.**
 
-Phase 1 concierge software for Island Host Concierge Services, Nassau: a Next.js customer and staff interface, a NestJS REST API, and actual Microsoft SQL Server persistence. The frontend never substitutes mock records for API failures.
+Concierge and Jamaica marketplace software for Island Host Concierge Services: a Next.js customer and staff interface, a NestJS REST API, and actual Microsoft SQL Server persistence. The frontend never substitutes mock records for API failures.
 
 ## Application overview
 Includes customer and staff workspaces, cookie authentication, role restrictions, customer profiles/preferences/guests, trips with flights and accommodation, editable SQL-backed categories/services/options, requests and status history, an operations board, generated/manual itineraries, notifications, concierge messages, global search, users/roles/settings, audit records and a live Command Center.
 
-Payments, WhatsApp, SMS, AI, flight tracking, vendor/driver portals, advanced dispatch, accounting and external CRM integrations are deferred. Vendor/Driver roles currently have no operational permissions.
+Also includes public discovery at `/explore`, guest/member trip planning at `/my-trip`, staff/supplier booking confirmation, quote/invoice/receipt pages, confirmed-only checkout and recorded manual payments/refunds. Existing supplier, transport/dispatch and communication APIs remain available. Online card charging, WhatsApp/SMS, flight tracking, accounting and external CRM integrations are not configured. See [marketplace implementation and verification](docs/marketplace-transformation.md) for current scope and deployment requirements.
 
 ## Architecture and technology stack
 - `src/app/`, `src/components/`, `src/views/`, `src/lib/`: Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4, React Query.
@@ -20,7 +20,7 @@ This repository is one npm project: one root `package.json`, lockfile, `node_mod
 
 TypeORM owns SQL Server connections, pooling, migrations and transactions. Domain services use parameterized T-SQL through a small persistence adapter for explicit joins, locking and pagination. No schema synchronization or destructive automatic migrations are enabled. No Azure, PostgreSQL, MySQL, Redis, Docker or Kubernetes is required.
 
-Browser requests use relative `/api` paths; Next.js forwards them to the environment-configured `API_URL`. Modules load on demand. Queries are cached/deduplicated, lists are paginated, and images are optimized by Next.js.
+Browser requests use relative `/api` paths; Next.js forwards them to the environment-configured `API_URL`. Modules load on demand. Queries are cached/deduplicated, lists are paginated, and catalog images use local assets or configured HTTPS hosts. Public listing images are displayed directly; private catalog images use Next.js optimization. Catalog managers can upload, preview, replace and choose photos in the service editor. See [service photo uploads](docs/service-photo-uploads.md) for usage and persistent storage setup.
 
 ## Prerequisites
 Node.js 22+ (24 LTS recommended), npm, Microsoft SQL Server 2017+, and a database-scoped SQL login. Production needs HTTPS and SMTP. SQL Server 2017+ is required by STRING_AGG. The optional local Windows driver requires ODBC Driver 17 and msnodesqlv8; SmarterASP.NET uses the standard TCP driver.
@@ -38,7 +38,7 @@ For a fresh checkout, copy `.env.example` to `.env`, configure SQL Server and th
 npm run dev
 ```
 
-This starts both the web app and API. Open `http://localhost:3000` with the example configuration. Stop both with Ctrl+C. Use `npm.cmd` instead of `npm` if PowerShell blocks the npm script under its execution policy.
+This starts both the web app and API. Open `http://localhost:3000/explore` for public discovery or `http://localhost:3000/login` for the existing workspace with the example configuration. Stop both with Ctrl+C. Use `npm.cmd` instead of `npm` if PowerShell blocks the npm script under its execution policy.
 
 To run the compiled app:
 
@@ -80,6 +80,7 @@ The root .env or process environment supplies configuration. Real .env files, lo
 | MAIL_MODE | file locally; smtp in production |
 | SMTP_HOST / SMTP_PORT / SMTP_SECURE / SMTP_USER / SMTP_PASSWORD / SMTP_FROM | Password recovery mail |
 | SERVICE_IMAGE_HOSTS | Approved HTTPS image hosts, comma separated |
+| SERVICE_UPLOAD_DIR | Persistent service photo directory; defaults to uploads/service-photos under the app root |
 | TEST_DB_DATABASE | Separate database ending in _Test |
 | ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_NAME | One-time administrator bootstrap |
 
